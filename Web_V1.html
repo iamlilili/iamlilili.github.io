@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ebrainK</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #video, #canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" width="300" height="300" poster="https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fpic.51yuansu.com%2Fpic3%2Fcover%2F01%2F14%2F62%2F59043cebb703f_610.jpg&refer=http%3A%2Fpic.51yuansu.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=jpeg?sec=1637115934&t=cd4ebc01b4b11fb45ce65a3b2dc7e933"></video>
+    <canvas id="canvas" width="300" height="300"></canvas><br>
+    <button id="camera">摄像头</button>
+    <button id="snap">拍照</button> 
+    <button onclick="switchCamera()">切換鏡頭</button>
+
+    <script async src="https://docs.opencv.org/3.4/opencv.js" onload="onOpenCvReady();"></script>
+    <script>
+        function onOpenCvReady() {
+            console.log('OpenCV.js is ready');
+        }
+
+        function getUserMedia(constraints, success, error) {
+            if (navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia(constraints).then(success).catch(error);
+            } else if (navigator.webkitGetUserMedia) {
+                navigator.webkitGetUserMedia(constraints, success, error);
+            } // chrome和safari
+        }
+
+        function success(stream) {
+            video.srcObject = stream;
+            video.play();
+        }
+
+        function error(error) {
+            console.log("访问失败");
+        }
+
+        document.getElementById('camera').addEventListener('click', function () {
+            let size = 300;
+            let video = document.getElementById('video');
+            let canvas = document.getElementById('canvas');
+            let context = canvas.getContext('2d');
+
+            // 打开相机
+            if (navigator.mediaDevices.getUserMedia || navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
+                getUserMedia({ video: { width: size, height: size } }, success, error);
+            } else {
+                alert("不支持");
+            }
+
+            // 实现拍照的功能
+            document.getElementById('snap').addEventListener('click', function () {
+                context.drawImage(video, 0, 0, size, size);
+                detectFace(canvas);
+            });
+        });
+
+        function detectFace(canvas) {
+            let src = cv.imread(canvas);
+            let gray = new cv.Mat();
+            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+            let faces = new cv.RectVector();
+            let faceCascade = new cv.CascadeClassifier();
+            faceCascade.load('haarcascade_frontalface_default.xml');
+
+            let msize = new cv.Size(0, 0);
+            faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0, msize, msize);
+
+            for (let i = 0; i < faces.size(); ++i) {
+                let face = faces.get(i);
+                let point1 = new cv.Point(face.x, face.y);
+                let point2 = new cv.Point(face.x + face.width, face.y + face.height);
+                cv.rectangle(src, point1, point2, [255, 0, 0, 255]);
+            }
+
+            cv.imshow(canvas, src);
+            src.delete();
+            gray.delete();
+            faceCascade.delete();
+            faces.delete();
+        }
+    </script>
+</body>
+</html>
