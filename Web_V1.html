@@ -23,80 +23,104 @@
     </style>
 </head>
 <body>
-    <video id="video" width="300" height="300" poster="https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fpic.51yuansu.com%2Fpic3%2Fcover%2F01%2F14%2F62%2F59043cebb703f_610.jpg&refer=http%3A%2Fpic.51yuansu.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=jpeg?sec=1637115934&t=cd4ebc01b4b11fb45ce65a3b2dc7e933"></video>
+    <video id="video" width="300" height="300"autoplay muted> </video>
     <canvas id="canvas" width="300" height="300"></canvas><br>
     <button id="camera">摄像头</button>
     <button id="snap">拍照</button> 
     <button onclick="switchCamera()">切換鏡頭</button>
+    
+ <script async src="https://docs.opencv.org/3.4/opencv.js" onload="onOpenCvReady();"></script>
+<script async src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 
-    <script async src="https://docs.opencv.org/3.4/opencv.js" onload="onOpenCvReady();"></script>
-    <script>
-        function onOpenCvReady() {
-            console.log('OpenCV.js is ready');
+<script>
+    function onOpenCvReady() {
+        console.log('OpenCV.js is ready');
+    }
+
+    function getUserMedia(constraints, success, error) {
+        if (navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia(constraints).then(success).catch(error);
+        } else if (navigator.webkitGetUserMedia) {
+            navigator.webkitGetUserMedia(constraints, success, error);
+        } else {
+            alert("Your browser does not support getUserMedia");
         }
+    }
 
-        function getUserMedia(constraints, success, error) {
-            if (navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia(constraints).then(success).catch(error);
-            } else if (navigator.webkitGetUserMedia) {
-                navigator.webkitGetUserMedia(constraints, success, error);
-            } // chrome和safari
-        }
+    function success(stream) {
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+        video.play();
+    }
 
-        function success(stream) {
-            video.srcObject = stream;
-            video.play();
-        }
+    function error(error) {
+        console.log("Access to camera failed:", error);
+    }
 
-        function error(error) {
-            console.log("访问失败");
-        }
+    document.getElementById('camera').addEventListener('click', function () {
+        let video = document.getElementById('video');
+        let canvas = document.getElementById('canvas');
+        let context = canvas.getContext('2d');
+        let size = 300;
 
-        document.getElementById('camera').addEventListener('click', function () {
-            let size = 300;
-            let video = document.getElementById('video');
-            let canvas = document.getElementById('canvas');
-            let context = canvas.getContext('2d');
+        getUserMedia({ video: { width: size, height: size } }, success, error);
 
-            // 打开相机
-            if (navigator.mediaDevices.getUserMedia || navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
-                getUserMedia({ video: { width: size, height: size } }, success, error);
-            } else {
-                alert("不支持");
-            }
+        video.addEventListener('play', async () => {
+            // FaceAPI setup
+            await Promise.all([
+                faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+                faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+                faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
+                faceapi.nets.faceExpressionNet.loadFromUri('./models')
+            ]);
 
-            // 实现拍照的功能
-            document.getElementById('snap').addEventListener('click', function () {
+            const displaySize = { width: video.width, height: video.height };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            setInterval(async () => {
+                // OpenCV face detection
                 context.drawImage(video, 0, 0, size, size);
                 detectFace(canvas);
-            });
+
+                // FaceAPI detection
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceExpressions();
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                faceapi.draw.drawDetections(canvas, resizedDetections);
+                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+            }, 100);
         });
+    });
 
-        function detectFace(canvas) {
-            let src = cv.imread(canvas);
-            let gray = new cv.Mat();
-            cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+    function detectFace(canvas) {
+        let src = cv.imread(canvas);
+        let gray = new cv.Mat();
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
 
-            let faces = new cv.RectVector();
-            let faceCascade = new cv.CascadeClassifier();
-            faceCascade.load('haarcascade_frontalface_default.xml');
+        let faces = new cv.RectVector();
+        let faceCascade = new cv.CascadeClassifier();
+        faceCascade.load('haarcascade_frontalface_default.xml');
 
-            let msize = new cv.Size(0, 0);
-            faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0, msize, msize);
+        let msize = new cv.Size(0, 0);
+        faceCascade.detectMultiScale(gray, faces, 1.1, 3, 0, msize, msize);
 
-            for (let i = 0; i < faces.size(); ++i) {
-                let face = faces.get(i);
-                let point1 = new cv.Point(face.x, face.y);
-                let point2 = new cv.Point(face.x + face.width, face.y + face.height);
-                cv.rectangle(src, point1, point2, [255, 0, 0, 255]);
-            }
-
-            cv.imshow(canvas, src);
-            src.delete();
-            gray.delete();
-            faceCascade.delete();
-            faces.delete();
+        for (let i = 0; i < faces.size(); ++i) {
+            let face = faces.get(i);
+            let point1 = new cv.Point(face.x, face.y);
+            let point2 = new cv.Point(face.x + face.width, face.y + face.height);
+            cv.rectangle(src, point1, point2, [255, 0, 0, 255]);
         }
-    </script>
+
+        cv.imshow(canvas, src);
+        src.delete();
+        gray.delete();
+        faceCascade.delete();
+        faces.delete();
+    }
+</script>
+
 </body>
 </html>
