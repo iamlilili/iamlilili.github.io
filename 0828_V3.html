@@ -4,68 +4,127 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ebrainK</title>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        #video, #canvas {
-            max-width: 100%;
-            height: auto;
-        }
-        button {
-            margin: 5px;
-        }
-    </style>
 </head>
 <body>
-    <video id="video" width="300" height="300" poster="https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fpic.51yuansu.com%2Fpic3%2Fcover%2F01%2F14%2F62%2F59043cebb703f_610.jpg&refer=http%3A%2Fpic.51yuansu.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=jpeg?sec=1637115934&t=cd4ebc01b4b11fb45ce65a3b2dc7e933"></video>
-    <canvas id="canvas" width="300" height="300"></canvas><br>
-    <button id="camera">摄像头</button>
-    <button id="snap">拍照</button> 
+<video id="videoElement" class="videoElement" autoplay muted playsinline></video>
+
+<div id="imageContainer"></div>
+
+<div>
     <button onclick="switchCamera()">切換鏡頭</button>
+</div>
 
    
     <script>
-        function getUserMedia(constraints, success, error) {
-            if (navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia(constraints).then(success).catch(error);
-            } else if (navigator.webkitGetUserMedia) {
-                navigator.webkitGetUserMedia(constraints, success, error);
-            } // chrome和safari
-        }
+        const videoElement = document.getElementById("videoElement");
 
-        function success(stream) {
-            video.srcObject = stream;
-            video.play();
-        }
+// 切換鏡頭
+function switchCamera() {
+  if (videoElement.srcObject) {
+    let videoTracks = videoElement.srcObject.getVideoTracks();
+    if (videoTracks.length > 0) {
+      let currentTrack = videoTracks[0];
+      let facingMode = currentTrack.getSettings().facingMode;
 
-        function error(error) {
-            console.log("访问失败");
-        }
+      const constraints = { video: {} };
+      if (facingMode === "user") {
+        constraints.video.facingMode = "environment"; // 切換到後鏡頭
+      } else {
+        constraints.video.facingMode = "user"; // 切換到前鏡頭
+      }
 
-        document.getElementById('camera').addEventListener('click', function () {
-            let size = 300;
-            let video = document.getElementById('video');
-            let canvas = document.getElementById('canvas');
-            let context = canvas.getContext('2d');
+      // 停止原本的視訊串流
+      videoTracks.forEach(function (track) {
+        track.stop();
+      });
 
-            // 打开相机
-            if (navigator.mediaDevices.getUserMedia || navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
-                getUserMedia({ video: { width: size, height: size } }, success, error);
-            } else {
-                alert("不支持");
-            }
+      // 確保瀏覽器支援 MediaDevices API
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        // 取得新的視訊串流
+        navigator.mediaDevices
+          .getUserMedia(constraints)
+          .then(function (stream) {
+            videoElement.srcObject = stream;
+          })
+          .catch(function (error) {
+            console.error("無法取得視訊串流:", error);
+            alert(
+              "您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！"
+            );
+          });
+      } else {
+        alert(
+          "您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！"
+        );
+      }
+    }
+  }
+}
 
-            // 实现拍照的功能
-            document.getElementById('snap').addEventListener('click', function () {
-                context.drawImage(video, 0, 0, size, size);
-            });
-        });
+function startCam() {
+  // 手機前後鏡頭切換 前鏡頭為 'user'，後鏡頭為 'environment'
+  const constraints = { video: { facingMode: "user" } };
+  // 確保瀏覽器支援MediaDevices API
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    // 取得視訊串流
+    navigator.mediaDevices
+      .getUserMedia(constraints)
+      .then(function (stream) {
+        // iOS 手機使用時，必須增加的屬性
+        videoElement.setAttribute("autoplay", "");
+        videoElement.setAttribute("muted", "");
+        videoElement.setAttribute("playsinline", "");
+
+        videoElement.srcObject = stream;
+
+        // 每秒繪製一格畫面
+        setInterval(function () {
+          let canvas = document.createElement("canvas");
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          canvas
+            .getContext("2d")
+            .drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+          // 改變圖片解析度
+          let scaleFactor = 2; // 調整這個數值以增加解析度
+
+          let offscreenCanvas = document.createElement("canvas");
+          offscreenCanvas.width = canvas.width * scaleFactor;
+          offscreenCanvas.height = canvas.height * scaleFactor;
+          let offscreenCtx = offscreenCanvas.getContext("2d");
+          offscreenCtx.drawImage(
+            canvas,
+            0,
+            0,
+            offscreenCanvas.width,
+            offscreenCanvas.height
+          );
+
+          // 直接顯示在前端
+          // 需要動態創建 <img> 元素，因為手機版可能會無法讀取
+          let imageElement = document.createElement("img");
+
+          // 將 <img> 元素添加到 HTML 中的指定元素上
+          let containerElement = document.getElementById("imageContainer");
+          containerElement.innerHTML = "";
+          imageElement.setAttribute("style", "width:100%");
+          containerElement.appendChild(imageElement);
+          imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
+        }, 1000); // 每秒繪製一次畫面
+      })
+      .catch(function (error) {
+        console.log("無法取得視訊串流：", error);
+        alert(
+          "您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！"
+        );
+      });
+  } else {
+    alert("您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！");
+  }
+}
+// 初始執行函式
+startCam();
     </script>
 </body>
 </html>
