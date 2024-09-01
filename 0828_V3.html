@@ -3,64 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Document</title>
-    <script defer src="face-api.min.js"></script>
-    <script defer src="script.js"></script>
+    <title>ebrainK</title>
     <style>
         body {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
             align-items: center;
-            background-color: #000;
-            overflow: hidden;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
         }
-        video, canvas {
-            width: 100%;
-            height: auto;
+        #video, #canvas {
             max-width: 100%;
-            max-height: 100%;
+            height: auto;
         }
-        canvas {
-            position: absolute;
+        button {
+            margin: 5px;
         }
     </style>
 </head>
 <body>
-    <video id="video" autoplay muted></video>
+    <video id="video" width="300" height="300" poster="https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fpic.51yuansu.com%2Fpic3%2Fcover%2F01%2F14%2F62%2F59043cebb703f_610.jpg&refer=http%3A%2Fpic.51yuansu.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=jpeg?sec=1637115934&t=cd4ebc01b4b11fb45ce65a3b2dc7e933"></video>
+    <canvas id="canvas" width="300" height="300"></canvas><br>
+    <button id="camera">摄像头</button>
+    <button id="snap">拍照</button> 
+    <button onclick="switchCamera()">切換鏡頭</button>
 
+   
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            startVideo();
-        });
-
-        function startVideo() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    const video = document.getElementById('video');
-                    video.srcObject = stream;
-                    video.play();
-                })
-                .catch(err => console.error('Error accessing camera: ', err));
+        function getUserMedia(constraints, success, error) {
+            if (navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia(constraints).then(success).catch(error);
+            } else if (navigator.webkitGetUserMedia) {
+                navigator.webkitGetUserMedia(constraints, success, error);
+            } // chrome和safari
         }
 
-        video.addEventListener('play', () => {
-            const canvas = faceapi.createCanvasFromMedia(video);
-            document.body.append(canvas);
-            const displaySize = { width: video.width, height: video.height };
-            faceapi.matchDimensions(canvas, displaySize);
+        function success(stream) {
+            video.srcObject = stream;
+            video.play();
+        }
 
-            setInterval(async () => {
-                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions();
-                const resizedDetections = faceapi.resizeResults(detections, displaySize);
-                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-                faceapi.draw.drawDetections(canvas, resizedDetections);
-                faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-            }, 100);
+        function error(error) {
+            console.log("访问失败");
+        }
+
+        document.getElementById('camera').addEventListener('click', function () {
+            let size = 300;
+            let video = document.getElementById('video');
+            let canvas = document.getElementById('canvas');
+            let context = canvas.getContext('2d');
+
+            // 打开相机
+            if (navigator.mediaDevices.getUserMedia || navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
+                getUserMedia({ video: { width: size, height: size } }, success, error);
+            } else {
+                alert("不支持");
+            }
+
+            // 实现拍照的功能
+            document.getElementById('snap').addEventListener('click', function () {
+                context.drawImage(video, 0, 0, size, size);
+            });
         });
     </script>
 </body>
