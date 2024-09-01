@@ -11,7 +11,7 @@
 <div>
     <button onclick="switchCamera()">切換鏡頭</button>
 </div>
-<video id="video" class="video" autoplay muted playsinline></video>
+<video id="video" class="video"  width="640" height="480" autoplay muted playsinline></video>
 
 <div id="imageContainer"></div>
 
@@ -96,21 +96,39 @@ function startCam() {
         }
     }
     function startFaceDetection() {
-        videoElement.addEventListener('play', () => {
-            const canvas = faceapi.createCanvasFromMedia(videoElement);
+        video.addEventListener('play', () => {
+            const canvas = faceapi.createCanvasFromMedia(video);
             document.body.append(canvas);
-            const displaySize = { width: videoElement.width, height: videoElement.height };
+            const displaySize = { width: video.width, height: video.height };
             faceapi.matchDimensions(canvas, displaySize);
 
             setInterval(async () => {
-                const detections = await faceapi.detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions();
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
                 const resizedDetections = faceapi.resizeResults(detections, displaySize);
                 canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
                 faceapi.draw.drawDetections(canvas, resizedDetections);
                 faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
             }, 100);
-        });
-    }
+            
+             setInterval(() => {
+            const canvas = document.createElement("canvas");
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            const context = canvas.getContext("2d");
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+            // 将 canvas 的内容转换为图片并插入到 imageContainer 中
+            const imageElement = document.createElement("img");
+            imageElement.src = canvas.toDataURL("image/jpeg", 1.0);
+
+            // 更新 imageContainer 的内容
+            const containerElement = document.getElementById("imageContainer");
+            containerElement.innerHTML = ""; // 清空现有内容
+            imageElement.setAttribute("style", "width:100%");
+            containerElement.appendChild(imageElement);
+        }, 5000); 
+    });
+}
 // 初始執行函式
 startCam();
     </script>
