@@ -6,7 +6,7 @@
     <title>ebrainK</title>
 </head>
 <body>
-<video id="video" class="videoElement" autoplay muted playsinline></video>
+<video id="videoElement" class="videoElement" autoplay muted playsinline></video>
 
 <div id="imageContainer"></div>
 
@@ -109,7 +109,7 @@ function startCam() {
           imageElement.setAttribute("style", "width:100%");
           containerElement.appendChild(imageElement);
           imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
-        }, 1000); // 每秒繪製一次畫面
+        }, 5000); // 每秒繪製一次畫面
       })
       .catch(function (error) {
         console.log("無法取得視訊串流：", error);
