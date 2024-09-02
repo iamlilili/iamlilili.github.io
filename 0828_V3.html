@@ -13,8 +13,17 @@
 <div>
     <button onclick="switchCamera()">切換鏡頭</button>
 </div>
-<script>
-const videoElement = document.getElementById("videoElement");
+
+   
+    <script>
+        const videoElement = document.getElementById("videoElement");
+        
+Promise.all([
+  faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+  faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+  faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
+  faceapi.nets.faceExpressionNet.loadFromUri('./models')
+]).then(startVideo)
 
 // 切換鏡頭
 function switchCamera() {
@@ -109,7 +118,7 @@ function startCam() {
           imageElement.setAttribute("style", "width:100%");
           containerElement.appendChild(imageElement);
           imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
-        }, 5000); // 每秒繪製一次畫面
+        }, 1000); // 每秒繪製一次畫面
       })
       .catch(function (error) {
         console.log("無法取得視訊串流：", error);
@@ -123,7 +132,6 @@ function startCam() {
 }
 // 初始執行函式
 startCam();
-</script>
-
+    </script>
 </body>
 </html>
