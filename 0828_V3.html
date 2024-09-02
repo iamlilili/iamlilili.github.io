@@ -14,9 +14,8 @@
     <button onclick="switchCamera()">切換鏡頭</button>
 </div>
 
-   
-    <script>
-        const videoElement = document.getElementById("videoElement");
+<script>
+const videoElement = document.getElementById("videoElement");
 
 // 切換鏡頭
 function switchCamera() {
@@ -49,12 +48,12 @@ function switchCamera() {
           .catch(function (error) {
             console.error("無法取得視訊串流:", error);
             alert(
-              "您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！"
+              "重新開啟頁面！"
             );
           });
       } else {
         alert(
-          "您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！"
+          "您使用的瀏覽器不支援視訊串流"
         );
       }
     }
@@ -125,6 +124,6 @@ function startCam() {
 }
 // 初始執行函式
 startCam();
-    </script>
+</script>
 </body>
 </html>
