@@ -19,7 +19,27 @@
 
 <script>
 const videoElement = document.getElementById("videoElement");
-const video = document.getElementById('video');
+
+async function init() {
+  try {
+    await loadFaceAPI();
+    console.log('face-api.js loaded successfully');
+
+    // 加載模型
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
+      faceapi.nets.faceExpressionNet.loadFromUri('./models')
+    ]);
+    console.log('Models loaded successfully');
+
+    // 啟動相機和人臉檢測
+    startCam();
+  } catch (error) {
+    console.error('Error during initialization:', error);
+  }
+}
 
 // 切換鏡頭
 function switchCamera() {
@@ -45,6 +65,7 @@ function switchCamera() {
           .getUserMedia(constraints)
           .then(function (stream) {
             videoElement.srcObject = stream;
+            runFaceDetection();  // 重新啟動人臉檢測
           })
           .catch(function (error) {
             console.error("無法取得視訊串流:", error);
@@ -71,6 +92,7 @@ function startCam() {
         videoElement.setAttribute("muted", "");
         videoElement.setAttribute("playsinline", "");
         videoElement.srcObject = stream;
+        runFaceDetection();  // 啟動人臉檢測
         // 每秒繪製一格畫面
         setInterval(function () {
           let canvas = document.createElement("canvas");
@@ -101,7 +123,7 @@ function startCam() {
           imageElement.setAttribute("style", "width:100%");
           containerElement.appendChild(imageElement);
           imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
-        }, 5000); // 每秒繪製一次畫面
+        }, 5000); // 每5秒繪製一次畫面
       })
       .catch(function (error) {
         console.log("無法取得視訊串流：", error);
@@ -112,49 +134,27 @@ function startCam() {
   }
 }
 
-// Load models from local directory or remote
-Promise.all([
-  faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-  faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
-  faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
-  faceapi.nets.faceExpressionNet.loadFromUri('./models')
-]).then(startVideo).catch(err => console.error("Model loading failed:", err));
-
-function startVideo() {
-  navigator.mediaDevices.getUserMedia(
-    { video: { facingMode: 'user' } } // 'user' 使用前置鏡頭, 'environment' 使用後置鏡頭
-  ).then(stream => {
-    video.srcObject = stream;
-    video.onloadedmetadata = () => {
-      video.play();
-      runFaceDetection();
-    };
-  }).catch(err => console.error("Error accessing the camera: " + err));
-}
-
 function runFaceDetection() {
-  video.addEventListener('play', () => {
-    const canvas = faceapi.createCanvasFromMedia(video);
-    document.body.append(canvas);
-    const displaySize = { width: video.videoWidth, height: video.videoHeight };
-    faceapi.matchDimensions(canvas, displaySize);
-    
-    setInterval(async () => {
-      const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions();
-      if (detections.length === 0) {
-        console.warn("No faces detected");
-      }
-      const resizedDetections = faceapi.resizeResults(detections, displaySize);
-      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-      faceapi.draw.drawDetections(canvas, resizedDetections);
-      faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
-      faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
-    }, 100);
-  });
+  const canvas = faceapi.createCanvasFromMedia(videoElement);
+  document.body.append(canvas);
+  const displaySize = { width: videoElement.videoWidth, height: videoElement.videoHeight };
+  faceapi.matchDimensions(canvas, displaySize);
+  
+  setInterval(async () => {
+    const detections = await faceapi.detectAllFaces(videoElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions();
+    if (detections.length === 0) {
+      console.warn("No faces detected");
+    }
+    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    faceapi.draw.drawDetections(canvas, resizedDetections);
+    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+    faceapi.draw.drawFaceExpressions(canvas, resizedDetections);
+  }, 100);
 }
 
-// 初始執行函式
-startCam();
+// 當 DOM 內容加載完成後，開始初始化
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
