@@ -22,11 +22,14 @@ function startCam() {
         videoElement.setAttribute("muted", "");
         videoElement.setAttribute("playsinline", "");
         
-        // 設置面部檢測
-        setupFaceDetection();
-        
-        // 設置圖像捕獲
-        setupImageCapture();
+        // 等待視頻元素準備就緒
+        videoElement.onloadedmetadata = function() {
+          videoElement.play();
+          // 設置面部檢測
+          setupFaceDetection();
+          // 設置圖像捕獲
+          setupImageCapture();
+        };
       })
       .catch(function (error) {
         console.error("無法取得視訊串流:", error);
@@ -40,7 +43,7 @@ function startCam() {
 function setupFaceDetection() {
   faceApiCanvas = faceapi.createCanvasFromMedia(videoElement);
   document.body.append(faceApiCanvas);
-  const displaySize = { width: videoElement.width, height: videoElement.height };
+  const displaySize = { width: videoElement.videoWidth, height: videoElement.videoHeight };
   faceapi.matchDimensions(faceApiCanvas, displaySize);
 
   setInterval(async () => {
@@ -74,13 +77,16 @@ function setupImageCapture() {
 }
 
 // 初始化
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   videoElement = document.getElementById('video');
   imageContainer = document.getElementById('imageContainer');
   
   // 加載 face-api 模型
-  Promise.all([
+  await Promise.all([
     faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
     faceapi.nets.faceLandmark68Net.loadFromUri('/models')
-  ]).then(startCam);
+  ]);
+
+  // 模型加載完成後啟動攝像頭
+  startCam();
 });
