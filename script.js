@@ -12,9 +12,9 @@ function startVideo() {
     { video: {} }
   ).then(stream => {
     video.srcObject = stream
-    video.autoplay = true
-    video.muted = true
-    video.playsinline = true // Ensures that the video will play inline in iOS browsers
+   // video.autoplay = true
+    //video.muted = true
+    //video.playsinline = true // Ensures that the video will play inline in iOS browsers
   }).catch(err => console.error(err))
 }
 
