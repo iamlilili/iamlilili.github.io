@@ -41,8 +41,8 @@ function startCam() {
 }
 
 function setupFaceDetection() {
-  faceApiCanvas = faceapi.createCanvasFromMedia(videoElement);
-  document.body.append(faceApiCanvas);
+  faceApiCanvas.width = videoElement.videoWidth;
+  faceApiCanvas.height = videoElement.videoHeight;
   const displaySize = { width: videoElement.videoWidth, height: videoElement.videoHeight };
   faceapi.matchDimensions(faceApiCanvas, displaySize);
 
@@ -56,7 +56,6 @@ function setupFaceDetection() {
 
 function setupImageCapture() {
   setInterval(function () {
-    canvas = document.createElement("canvas");
     canvas.width = videoElement.videoWidth;
     canvas.height = videoElement.videoHeight;
     canvas.getContext("2d").drawImage(videoElement, 0, 0, canvas.width, canvas.height);
@@ -79,7 +78,30 @@ function setupImageCapture() {
 // 初始化
 document.addEventListener('DOMContentLoaded', async () => {
   videoElement = document.getElementById('video');
+  canvas = document.getElementById('captureCanvas');
+  faceApiCanvas = document.getElementById('faceApiCanvas');
   imageContainer = document.getElementById('imageContainer');
+  
+  // 設置容器樣式
+  const container = document.createElement('div');
+  container.style.position = 'relative';
+  container.style.width = 'fit-content';
+  container.style.margin = 'auto';
+  
+  // 設置視頻元素樣式
+  videoElement.style.display = 'block';
+  
+  // 設置 faceApiCanvas 樣式
+  faceApiCanvas.style.position = 'absolute';
+  faceApiCanvas.style.top = '0';
+  faceApiCanvas.style.left = '0';
+  
+  // 將元素添加到容器中
+  container.appendChild(videoElement);
+  container.appendChild(faceApiCanvas);
+  
+  // 將容器添加到 body
+  document.body.insertBefore(container, document.body.firstChild);
   
   // 加載 face-api 模型
   await Promise.all([
