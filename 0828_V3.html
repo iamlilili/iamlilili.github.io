@@ -21,19 +21,16 @@
         justify-content: space-between;
         align-items: center;
         gap: 20px; /* 調整兩個元素之間的間距 */
+        width: 100vw;
+        height: 100vh;
       }
 
       /* video 樣式 */
-      video {
-        width: 50vw;
-        height: auto;
+      video, #imageContainer {
+        width: 50vw; /* 設置寬度為 50% */
+        height: 100%; /* 設置高度為 100% */
         background-color: #000; /* 可以加上背景顏色 */
-      }
-
-      /* imageContainer 樣式 */
-      #imageContainer {
-        width: 50vw;
-        height: auto;
+        object-fit: cover; /* 確保視頻能夠填滿容器 */
       }
 
       button {
@@ -129,7 +126,7 @@ function startCam() {
           let imageElement = document.createElement("img");
           let containerElement = document.getElementById("imageContainer");
           containerElement.innerHTML = "";
-          imageElement.setAttribute("style", "width:100%");
+          imageElement.setAttribute("style", "width:100%; height:100%");
           containerElement.appendChild(imageElement);
           imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
         }, 5000); // 每 5 秒繪製一次畫面
