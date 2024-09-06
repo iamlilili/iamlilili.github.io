@@ -21,16 +21,13 @@
         justify-content: space-between;
         align-items: center;
         gap: 20px; /* 調整兩個元素之間的間距 */
-        width: 100vw;
-        height: 100vh;
       }
 
       /* video 樣式 */
       video, #imageContainer {
-        width: 50vw; /* 設置寬度為 50% */
-        height: 100%; /* 設置高度為 100% */
+        width: 640px;  /* 設置自訂寬度 */
+        height: 480px; /* 設置自訂高度 */
         background-color: #000; /* 可以加上背景顏色 */
-        object-fit: cover; /* 確保視頻能夠填滿容器 */
       }
 
       button {
@@ -85,14 +82,10 @@ function switchCamera() {
           })
           .catch(function (error) {
             console.error("無法取得視訊串流:", error);
-            alert(
-              "重新開啟頁面！"
-            );
+            alert("重新開啟頁面！");
           });
       } else {
-        alert(
-          "您使用的瀏覽器不支援視訊串流"
-        );
+        alert("您使用的瀏覽器不支援視訊串流");
       }
     }
   }
@@ -129,13 +122,11 @@ function startCam() {
           imageElement.setAttribute("style", "width:100%; height:100%");
           containerElement.appendChild(imageElement);
           imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
-        }, 5000); // 每 5 秒繪製一次畫面
+        }, 5000);
       })
       .catch(function (error) {
         console.log("無法取得視訊串流：", error);
-        alert(
-          "您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！"
-        );
+        alert("您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！");
       });
   } else {
     alert("您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！");
