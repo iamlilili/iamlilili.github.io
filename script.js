@@ -24,9 +24,11 @@ function startCam() {
     navigator.mediaDevices.getUserMedia(constraints)
       .then(function (stream) {
         videoElement.srcObject = stream;
-        videoElement.play();
-        // 設置面部檢測
-        setupFaceDetection();
+        videoElement.onloadedmetadata = function(e) {
+          videoElement.play();
+          // 視頻準備好後設置面部檢測
+          setupFaceDetection();
+        };
       })
       .catch(function (error) {
         console.error("無法取得視訊串流:", error);
