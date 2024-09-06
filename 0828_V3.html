@@ -5,14 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ebrainK</title>
 </head>
-<body>
+<body>\
+<div>
+    <button onclick="switchCamera()">切換鏡頭</button>
+</div>
+
 <video id="videoElement" class="videoElement" autoplay muted playsinline></video>
 
 <div id="imageContainer"></div>
 
-<div>
-    <button onclick="switchCamera()">切換鏡頭</button>
-</div>
 
 <script>
 const videoElement = document.getElementById("videoElement");
