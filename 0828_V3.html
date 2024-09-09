@@ -8,7 +8,6 @@
       body {
         margin: 0;
         padding: 0;
-        display: flex;
         justify-content: center;
         align-items: center;
         height: 100vh;
@@ -85,7 +84,7 @@ function switchCamera() {
             alert("重新開啟頁面！");
           });
       } else {
-        alert("您使用的瀏覽器不支援視訊串流");
+        alert("瀏覽器不支援視訊串流");
       }
     }
   }
@@ -126,10 +125,10 @@ function startCam() {
       })
       .catch(function (error) {
         console.log("無法取得視訊串流：", error);
-        alert("您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！");
+        alert("瀏覽器不支援，請使用其他瀏覽器重開頁面！");
       });
   } else {
-    alert("您使用的瀏覽器不支援視訊串流，請使用其他瀏覽器，再重新開啟頁面！");
+    alert("瀏覽器不支援，請使用其他瀏覽器重開頁面！");
   }
 }
 
