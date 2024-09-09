@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ebrainK</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+
+   
+
+      /* video 樣式 */
+      video{
+        width: 640px;  
+        height: 480px; 
+      }
+
+     button {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+    </style>
+</head>
+<body>
+
+<div>
+  <button onclick="switchCamera()">切換鏡頭</button>
+</div>
+
+
+<div class="container">
+  <video id="videoElement" class="videoElement" autoplay muted playsinline></video>
+ <!-- <div id="imageContainer"></div> -->
+</div>
+
+<script>
+const videoElement = document.getElementById("videoElement");
+
+// 切換鏡頭
+function switchCamera() {
+  if (videoElement.srcObject) {
+    let videoTracks = videoElement.srcObject.getVideoTracks();  /*取得影像*/
+    if (videoTracks.length > 0) {
+      let currentTrack = videoTracks[0];
+      let facingMode = currentTrack.getSettings().facingMode;
+/*user是前鏡頭，env是後鏡頭*/
+      const constraints = { video: {} };
+      if (facingMode === "user") {  
+        constraints.video.facingMode = "environment"; // 切換到後鏡頭
+      } else {
+        constraints.video.facingMode = "user"; // 切換到前鏡頭
+      }
+
+      // 停止原本的視訊串流
+      videoTracks.forEach(function (track) {
+        track.stop();
+      });
+
+      // 確保瀏覽器支援 MediaDevices API
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        
+        navigator.mediaDevices
+          .getUserMedia(constraints)
+          .then(function (stream) {
+            videoElement.srcObject = stream;
+          })
+          .catch(function (error) {
+            console.error("無法取得視訊串流:", error);
+            alert("重新開啟頁面！");
+          });
+      } else {
+        alert("瀏覽器不支援視訊串流");
+      }
+    }
+  }
+}
+
+function startCam() {
+  const constraints = { video: { facingMode: "user" } };
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices
+      .getUserMedia(constraints)
+      .then(function (stream) {
+        videoElement.setAttribute("autoplay", "");   /*iphone 一定要加*/
+        videoElement.setAttribute("muted", "");
+        videoElement.setAttribute("playsinline", "");
+        videoElement.srcObject = stream;
+      })
+      .catch(function (error) {
+        console.log("無法取得視訊串流：", error);
+        alert("瀏覽器不支援，請使用其他瀏覽器重開頁面！");
+      });
+  } else {
+    alert("瀏覽器不支援，請使用其他瀏覽器重開頁面！");
+  }
+}
+
+startCam();
+</script>
+
+</body>
+</html>
