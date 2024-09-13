@@ -14,8 +14,8 @@ function startVideo() {
   const constraints = {
     video: {
       facingMode: 'user', // 默認使用前鏡頭
-      width: { ideal: 640 },  // 限制寬度
-      height: { ideal: 480 }, // 限制高度
+      width: { ideal: 720 },  // 限制寬度
+      height: { ideal: 560 }, // 限制高度
     }
   };
 
