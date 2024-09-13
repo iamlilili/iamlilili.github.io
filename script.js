@@ -7,12 +7,38 @@ Promise.all([
 ]).then(startVideo)
 
 function startVideo() {
+  const videoElement = document.getElementById('videoElement');
+
+  // 定義約束條件
+  const constraints = { video: {} };
+
+  // 首先嘗試使用新的 `navigator.mediaDevices.getUserMedia`
+  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices
+      .getUserMedia(constraints)
+      .then(function (stream) {
+        videoElement.setAttribute("autoplay", "");
+        videoElement.setAttribute("muted", "");
+        videoElement.setAttribute("playsinline", "");
+        videoElement.srcObject = stream;
+      })
+      .catch(function (error) {
+        console.error("Error accessing media devices:", error);
+      });
+  } else if (navigator.getUserMedia) {
+    // 如果不支援 `mediaDevices`，回退到 `navigator.getUserMedia`
     navigator.getUserMedia(
       { video: {} },
-      stream => video.srcObject = stream,
-      err => console.error(err)
-    )
+      stream => {
+        videoElement.srcObject = stream;
+      },
+      err => console.error("Error using getUserMedia:", err)
+    );
+  } else {
+    // 不支援的瀏覽器
+    alert("您的瀏覽器不支援視訊串流。請更新瀏覽器或使用其他瀏覽器。");
   }
+}
 
 video.addEventListener('play', () => {
   const canvas = faceapi.createCanvasFromMedia(video)
