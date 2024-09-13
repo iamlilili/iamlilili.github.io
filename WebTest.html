@@ -3,41 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ebrain</title>
+    <title>ebrainK</title>
     <style>
-       body {
+      body {
         margin: 0;
         padding: 0;
         justify-content: center;
         align-items: center;
         height: 100vh;
         background-color: #f0f0f0;
-        flex-direction: column; 
       }
 
-   
+      /* 容器：將 video 和 imageContainer 並排 */
+      .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 20px; /* 調整兩個元素之間的間距 */
+      }
 
       /* video 樣式 */
-      video{
-        width: 640px;  
-        height: 480px; 
+      video, #imageContainer {
+        width: 640px;  /* 設置自訂寬度 */
+        height: 480px; /* 設置自訂高度 */
+        background-color: #000; /* 可以加上背景顏色 */
       }
-/* 手機版
-@media screen and (max-width: 760px) {
-  video {
-    width: 320px;  
-    height: 240px; 
-  }
-}*/
-     button {
- margin-bottom: 20px; /* 與影片保持距離 */
-}
+
+      button {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+      }
     </style>
 </head>
 <body>
 
 <div>
   <button onclick="switchCamera()">切換鏡頭</button>
+</div>
+
+<!-- 用 container 將 video 和 imageContainer 包起來 -->
+<div class="container">
   <video id="videoElement" class="videoElement" autoplay muted playsinline></video>
  <!-- <div id="imageContainer"></div> -->
 </div>
@@ -48,13 +54,13 @@ const videoElement = document.getElementById("videoElement");
 // 切換鏡頭
 function switchCamera() {
   if (videoElement.srcObject) {
-    let videoTracks = videoElement.srcObject.getVideoTracks();  /*取得影像*/
+    let videoTracks = videoElement.srcObject.getVideoTracks();
     if (videoTracks.length > 0) {
       let currentTrack = videoTracks[0];
       let facingMode = currentTrack.getSettings().facingMode;
-/*user是前鏡頭，env是後鏡頭*/
+
       const constraints = { video: {} };
-      if (facingMode === "user") {  
+      if (facingMode === "user") {
         constraints.video.facingMode = "environment"; // 切換到後鏡頭
       } else {
         constraints.video.facingMode = "user"; // 切換到前鏡頭
@@ -67,7 +73,7 @@ function switchCamera() {
 
       // 確保瀏覽器支援 MediaDevices API
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        
+        // 取得新的視訊串流
         navigator.mediaDevices
           .getUserMedia(constraints)
           .then(function (stream) {
@@ -90,10 +96,32 @@ function startCam() {
     navigator.mediaDevices
       .getUserMedia(constraints)
       .then(function (stream) {
-        videoElement.setAttribute("autoplay", "");   /*iphone 一定要加*/
+        videoElement.setAttribute("autoplay", "");
         videoElement.setAttribute("muted", "");
         videoElement.setAttribute("playsinline", "");
         videoElement.srcObject = stream;
+
+        setInterval(function () {
+          let canvas = document.createElement("canvas");
+          canvas.width = videoElement.videoWidth;
+          canvas.height = videoElement.videoHeight;
+          canvas.getContext("2d").drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+          let scaleFactor = 2;
+
+          let offscreenCanvas = document.createElement("canvas");
+          offscreenCanvas.width = canvas.width * scaleFactor;
+          offscreenCanvas.height = canvas.height * scaleFactor;
+          let offscreenCtx = offscreenCanvas.getContext("2d");
+          offscreenCtx.drawImage(canvas, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+
+          let imageElement = document.createElement("img");
+          let containerElement = document.getElementById("imageContainer");
+          containerElement.innerHTML = "";
+          imageElement.setAttribute("style", "width:100%; height:100%");
+          containerElement.appendChild(imageElement);
+          imageElement.src = offscreenCanvas.toDataURL("image/jpeg", 1);
+        }, 5000);
       })
       .catch(function (error) {
         console.log("無法取得視訊串流：", error);
