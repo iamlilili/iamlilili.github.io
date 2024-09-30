@@ -1,43 +1,51 @@
-var scene = new THREE.Scene();
-var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+const videoElement = document.getElementById('video');
+const canvasElement = document.createElement('canvas');
+document.body.appendChild(canvasElement);
+const canvasCtx = canvasElement.getContext('2d');
 
-var renderer = new THREE.WebGLRenderer();
-renderer.setSize( window.innerWidth, window.innerHeight );
-document.body.appendChild( renderer.domElement );
+const faceMesh = new FaceMesh({
+  locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+  }
+});//486
 
-// var group = new THREE.Group();
-var geometry = new THREE.BoxGeometry(1, 1, 1)
-var material = new THREE.MeshPhongMaterial( { color: '#ffffff' } );
-// var linematerial = new THREE.MeshBasicMaterial( { color: '#ffffff', wireframe: true} ); // 線稿的材質
-var cube = new THREE.Mesh( geometry, material );
-// var linecube = new THREE.Mesh( geometry, linematerial );
-// group.add( cube );
-// group.add( linecube );
-// scene.add( group );
-scene.add( cube );
+faceMesh.setOptions({
+  maxNumFaces: 1, // 偵測一張臉
+  refineLandmarks: true, 
+  minDetectionConfidence: 0.8,
+  minTrackingConfidence: 0.8
+});
 
-var ambientLight = new THREE.AmbientLight( '#0c0c0c' );
-scene.add( ambientLight );
+faceMesh.onResults(onResults);
 
-var spoltLight  = new THREE.SpotLight( '#FF0000' );
+const camera = new Camera(videoElement, {
+  onFrame: async () => {
+    await faceMesh.send({ image: videoElement });
+  },
+  width: 1280,
+  height: 960
+});
+camera.start();
 
-spoltLight.position.set(3, 3, 3);
-spoltLight.target = cube;
+// 當偵測到臉部時的處理邏輯
+function onResults(results) {
+  canvasElement.width = videoElement.videoWidth;
+  canvasElement.height = videoElement.videoHeight;
 
-scene.add( spoltLight );
+  // 清空畫布
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+  canvasCtx.drawImage(
+    results.image, 0, 0, canvasElement.width, canvasElement.height);
 
+  // 繪製臉部特徵點
+  if (results.multiFaceLandmarks) {
+    for (const landmarks of results.multiFaceLandmarks) {
+      drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,
+                     { color: '#C0C0C070', lineWidth: 2 });
+     
+    }
+  }
 
-camera.position.z = 5;
-
-var animate = function () {
-  requestAnimationFrame( animate );
-
-  // group.rotation.x += 0.01;
-  // group.rotation.y += 0.01;
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.01;
-
-  renderer.render( scene, camera );
-};
-
-animate();
+  canvasCtx.restore();
+}
