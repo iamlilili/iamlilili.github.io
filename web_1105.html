@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Tracking Cube with Camera Feed</title>
+</head>
+<body>
+	<div id="con">
+		<video id="video"></video>
+		<canvas id="outputCanvas"></canvas>    <!--繪製人臉-->
+		<img id="pinecone" src="" alt="pinecone">
+	</div>
+    <div id="container"></div>   <!--顯示Three.js 的渲染-->
+
+    <style>
+		@charset "UTF-8";
+		@media (max-width: 600px) {
+			body { background-color:rgb(41, 41, 41);}
+			#con { position : relative; width : 100vw; }
+			#video { position : absolute; z-index : 1; left : 0; top : 0; width : 100%; object-fit: contain;}
+			#outputCanvas { position : absolute; z-index : 100; left : 0; top : 0; width : 100%;}
+			#pinecone {
+				position: absolute;
+				left : 0; top : 0;
+				width: 100%;
+				z-index: 999;
+			}
+		}
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="./kalman.js" type="text/javascript"></script>
+
+    <script type="module">
+        // Three.js setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });  //alpha: true透明背景
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+        const videoElement = document.getElementById('video');
+        const canvasElement = document.getElementById('outputCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+
+        let kf_1 = new KalmanFilter({R: 2});
+        let kf_2 = new KalmanFilter({R: 2});
+        let kf_3 = new KalmanFilter({R: 2});
+        let kf_4 = new KalmanFilter({R: 2});
+        let kf_5 = new KalmanFilter({R: 2});
+        let kf_6 = new KalmanFilter({R: 2});
+        let kf_7 = new KalmanFilter({R: 2});
+        let kf_8 = new KalmanFilter({R: 2});
+        let kf_9 = new KalmanFilter({R: 2});
+        let kf_10 = new KalmanFilter({R: 2});
+
+            //建立 WebSocket 連接
+        const sock = new WebSocket('ws://192.168.101.50:9002');
+        let id = null
+
+        // 當 WebSocket 連接成功時
+        sock.onopen = function () {
+            console.log('WebSocket Success');
+        };
+
+        sock.onclose = () => {
+            console.log('WebSocket disconnect')
+        }
+		
+		let pointsData
+		
+		sock.onmessage = function(msg) {
+			// 伺服器傳送的資料是二進位數據，需要將其轉換為 Blob
+			let sblob = msg.data;
+			// 创建一个 URL 对象，用于在 img 标签中显示 Blob
+			let imgUrl = URL.createObjectURL(sblob);
+			// 创建一个 img 标签并设置其 src 属性
+			let imgElement = document.getElementById("pinecone");
+			imgElement.src = imgUrl;
+			if (sock.readyState === WebSocket.OPEN&& pointsData) {
+                sock.send(JSON.stringify(pointsData));
+            }else { 
+				pointsData = {
+					leftEye_x: -1,
+					leftEye_y: -1,
+					rightEye_x: -1,
+					rightEye_y: -1,
+					leftMouthCorner_x: -1,
+					leftMouthCorner_y: -1,
+					rightMouthCorner_x: -1,
+					rightMouthCorner_y: -1,
+					noseTip_x: -1,
+					noseTip_y: -1
+				};
+				sock.send(JSON.stringify(pointsData)); 
+			}
+		}
+
+        //在 onResults 函數中傳輸特徵點座標
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiFaceLandmarks) {
+                for (const landmarks of results.multiFaceLandmarks) {
+                    drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,
+                                {color: '#C0C0C070', lineWidth: 0.5});
+                    
+                    const leftEye = landmarks[33];    // 左眼角
+                    const rightEye = landmarks[263];  // 右眼角
+                    const leftMouthCorner = landmarks[61];
+                    const rightMouthCorner = landmarks[291];
+                    const noseTip = landmarks[1];     // 鼻尖
+                    const forehead = landmarks[10];   // 額頭
+                    
+                    pointsData = {
+                        leftEye_x: kf_1.filter(leftEye.x * canvasElement.width),
+                        leftEye_y: kf_2.filter(leftEye.y * canvasElement.height),
+                        rightEye_x: kf_3.filter(rightEye.x * canvasElement.width),
+                        rightEye_y: kf_4.filter(rightEye.y * canvasElement.height),
+                        leftMouthCorner_x: kf_5.filter(leftMouthCorner.x * canvasElement.width),
+                        leftMouthCorner_y: kf_6.filter(leftMouthCorner.y * canvasElement.height),
+                        rightMouthCorner_x: kf_7.filter(rightMouthCorner.x * canvasElement.width),
+                        rightMouthCorner_y: kf_8.filter(rightMouthCorner.y * canvasElement.height),
+                        noseTip_x: kf_9.filter(noseTip.x * canvasElement.width),
+                        noseTip_y: kf_10.filter(noseTip.y * canvasElement.height)
+                    };
+
+                    // const points = [leftEye, rightEye, leftMouthCorner, rightMouthCorner, noseTip];
+                    // const colors = ['red', 'blue', 'green', 'yellow', 'purple']; // 特徵點顏色
+
+                    // points.forEach((point, index) => {
+                    //     canvasCtx.beginPath();
+                    //     canvasCtx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 5, 0, 2 * Math.PI);
+                    //     canvasCtx.fillStyle = colors[index];
+                    //     canvasCtx.fill();
+                    // });
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        // Mediapipe FaceMesh 設置
+        const faceMesh = new FaceMesh({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
+        }});
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        faceMesh.onResults(onResults);
+		
+		videoElement.setAttribute('autoplay', '');
+		videoElement.setAttribute('muted', '');
+		videoElement.setAttribute('playsinline', '');
+
+        // 啟動攝像頭
+        if (window.Camera) {
+            const camera = new window.Camera(videoElement, {
+                onFrame: async () => {
+                    await faceMesh.send({image: videoElement});
+					width : videoElement.videoWidth;
+					height : videoElement.videoHeight;
+                },
+				facingMode: 'environment'
+            });
+            camera.start();
+        } else {
+            console.error('Camera module not found');
+        }
+		
+		function onWindowResize() {
+			canvasElement.style.height = videoElement.offsetHeight  + "px";
+		}
+		// 處理窗口大小改變
+        window.addEventListener('resize', onWindowResize, false);
+		
+        // 繪製循環
+        function animate() {
+			camera.aspect = videoElement.offsetWidth / videoElement.offsetHeight;
+            camera.updateProjectionMatrix();
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+			canvasElement.style.height = videoElement.offsetHeight  + "px";
+			canvasElement.width = videoElement.videoWidth;
+			canvasElement.height = videoElement.videoHeight;
+        }
+        animate();
+		
+    </script>
+</body>
+</html>
