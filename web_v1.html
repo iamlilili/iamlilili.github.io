@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Tracking Cube with Camera Feed</title>
+</head>
+<body>
+    <style>
+        body { margin: 20; }
+        canvas { position: absolute; top: 0; left: 0; }
+        #video { display: none; }
+    </style>
+    <video id="video"></video>
+    <canvas id="outputCanvas"></canvas>    <!--繪製人臉-->
+    <div id="container"></div>   <!--顯示Three.js 的渲染-->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+
+    <script type="module">
+         function onOpenCvReady() {
+            console.log('OpenCV.js is ready.');
+            cv['onRuntimeInitialized'] = () => {
+                console.log('OpenCV runtime initialized.');
+                initializeFaceMesh(); // OpenCV 加载完成后初始化主逻辑
+            };
+        }
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(10, 10, 10);
+        scene.add(ambientLight, pointLight);
+
+     // 加載 .obj 模型
+    const loader = new THREE.OBJLoader();
+    let objModel;
+
+    loader.load( './Pin-Han_Chen/Skin.obj', function (object) {
+          objModel = object;
+          objModel.scale.set(0.01, 0.01, 0.01);
+          scene.add(objModel);
+     });
+      
+    camera.position.z = 4; //這個要在調
+
+    const videoElement = document.getElementById('video');
+    const canvasElement = document.getElementById('outputCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    
+    //建立 WebSocket 連接
+    // const sock = new WebSocket('ws://192.168.101.46:9002');
+    // let id = null
+
+    // // 當 WebSocket 連接成功時
+    // sock.onopen = function () {
+    //     console.log('WebSocket Success');
+    // };
+
+    // sock.onclose = () => {
+    //     console.log('WebSocket disconnect')
+    // }
+    // let pointsData
+    // // 當需要傳輸特徵點數據時
+    // id = setInterval(function sendCoordinates(points) {
+    //     if (sock.readyState === WebSocket.OPEN&& pointsData) {
+    //         sock.send(JSON.stringify(pointsData));
+    //     }
+    // },20);
+    
+    function onResults(results) {
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+    if (results.multiFaceLandmarks) {
+        for (const landmarks of results.multiFaceLandmarks) {
+            drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, { color: '#C0C0C070', lineWidth: 0.5 });
+
+            // 2D 图像点：从 Mediapipe 获取
+            const imagePoints = cv.matFromArray(5, 2, cv.CV_32FC1, [
+                landmarks[1].x * canvasElement.width, landmarks[1].y * canvasElement.height, // Nose tip
+                landmarks[33].x * canvasElement.width, landmarks[33].y * canvasElement.height, // Left eye
+                landmarks[263].x * canvasElement.width, landmarks[263].y * canvasElement.height, // Right eye
+                landmarks[61].x * canvasElement.width, landmarks[61].y * canvasElement.height, // Left mouth corner
+                landmarks[291].x * canvasElement.width, landmarks[291].y * canvasElement.height // Right mouth corner
+            ]);
+
+            // 3D 模型点：需要根据模型实际定义
+            const objectPoints = cv.matFromArray(5, 3, cv.CV_32FC1, [
+                0.0, 0.0, 0.0,  // Nose tip in 3D space
+                -0.035, 0.07, 0.0, // Left eye corner
+                0.035, 0.07, 0.0,  // Right eye corner
+                -0.03, -0.05, 0.0, // Left mouth corner
+                0.03, -0.05, 0.0   // Right mouth corner
+            ]);
+
+            // 相机内参矩阵（假设无畸变）
+            const cameraMatrix = cv.matFromArray(3, 3, cv.CV_64FC1, [
+                1280, 0, 640,  // fx, 0, cx
+                0, 1280, 360,  // 0, fy, cy
+                0, 0, 1        // 0,  0,  1
+            ]);
+            const distCoeffs = cv.Mat.zeros(5, 1, cv.CV_64FC1);
+
+            // 初始化 rvec 和 tvec
+            const rvec = new cv.Mat();
+            const tvec = new cv.Mat();
+
+            // 使用 solvePnP 计算姿态
+            cv.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec);
+
+            // 将旋转向量转换为旋转矩阵
+            const rotationMatrix = new cv.Mat();
+            cv.Rodrigues(rvec, rotationMatrix);
+
+            // 更新 Three.js 模型的位置和旋转
+            if (objModel) {
+                objModel.position.set(tvec.data64F[0], tvec.data64F[1], -tvec.data64F[2]);
+
+                const rotation = new THREE.Matrix4().set(
+                    rotationMatrix.data64F[0], rotationMatrix.data64F[1], rotationMatrix.data64F[2], 0,
+                    rotationMatrix.data64F[3], rotationMatrix.data64F[4], rotationMatrix.data64F[5], 0,
+                    rotationMatrix.data64F[6], rotationMatrix.data64F[7], rotationMatrix.data64F[8], 0,
+                    0, 0, 0, 1
+                );
+                objModel.setRotationFromMatrix(rotation);
+            }
+
+            // 释放 OpenCV 内存
+            rvec.delete();
+            tvec.delete();
+            rotationMatrix.delete();
+            objectPoints.delete();
+            imagePoints.delete();
+            cameraMatrix.delete();
+            distCoeffs.delete();
+        }
+    }
+
+    canvasCtx.restore();
+}
+
+        // Mediapipe FaceMesh 設置
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        faceMesh.onResults(onResults);
+
+        // 啟動攝像頭
+        if (window.Camera) {
+            const camera = new window.Camera(videoElement, {
+            onFrame: async () => {
+                await faceMesh.send({image: videoElement});
+            },
+                width: 1280,
+                height: 720
+            });
+            camera.start();
+        } else {
+            console.error('Camera module not found');
+        }
+
+        // 繪製循環
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // 處理窗口大小改變
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        onWindowResize();
+
+    </script>
+</body>
+</html>
