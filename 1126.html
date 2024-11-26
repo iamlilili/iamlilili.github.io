@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Tracking Cube with Camera Feed</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" type="text/javascript"></script>
+    <style>
+        body { margin: 0; }
+        canvas { position: absolute; top: 0; left: 0; }
+        #video { display: none; }
+    </style>
+</head>
+<body>
+    <video id="video"></video>
+    <canvas id="outputCanvas"></canvas>
+    <div id="container"></div>
+    <script>
+        let objModel = null; // 3D 模型
+        let modelPoints = []; // 模型的特徵點
+
+        function onOpenCvReady() {
+            console.log('OpenCV.js is ready.');
+            cv['onRuntimeInitialized'] = () => {
+                console.log('OpenCV runtime initialized.');
+                loadAndDetectModel(); // 載入模型並進行特徵點偵測
+            };
+        }
+
+        // 虛擬 Canvas 初始化
+        const offscreenCanvas = document.createElement('canvas');
+        offscreenCanvas.width = 512;
+        offscreenCanvas.height = 512;
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        // 主 Canvas
+        const canvasElement = document.getElementById('outputCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+
+        // Three.js 場景初始化
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('container').appendChild(renderer.domElement);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(10, 10, 10);
+        scene.add(ambientLight, pointLight);
+
+        // 載入模型並渲染到虛擬 Canvas
+        function loadAndDetectModel() {
+            const loader = new THREE.OBJLoader();
+            loader.load('./Pin-Han_Chen/Skin.obj', (object) => {
+                objModel = object;
+                objModel.scale.set(0.01, 0.01, 0.01);
+                scene.add(objModel);
+
+                // 渲染到虛擬 Canvas
+                const virtualRenderer = new THREE.WebGLRenderer({ canvas: offscreenCanvas });
+                virtualRenderer.setSize(512, 512);
+                virtualRenderer.render(scene, camera);
+
+                // 將 Canvas 內容傳入 Mediapipe
+                const img = new Image();
+                img.src = offscreenCanvas.toDataURL();
+                img.onload = () => {
+                    const faceMesh = new FaceMesh({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+                    });
+                    faceMesh.setOptions({
+                        maxNumFaces: 1,
+                        refineLandmarks: true,
+                        minDetectionConfidence: 0.5,
+                        minTrackingConfidence: 0.5
+                    });
+                    faceMesh.onResults(onModelDetection);
+                    faceMesh.send({ image: img });
+                };
+            });
+        }
+
+        // 偵測模型特徵點
+        function onModelDetection(results) {
+            if (results.multiFaceLandmarks) {
+                const landmarks = results.multiFaceLandmarks[0];
+                modelPoints = landmarks.map(point => [
+                    point.x * offscreenCanvas.width,
+                    point.y * offscreenCanvas.height,
+                    point.z
+                ]);
+                console.log('模型特徵點:', modelPoints);
+
+                // 初始化人臉追蹤
+                initializeFaceTracking();
+            }
+        }
+
+        // 初始化人臉追蹤
+        function initializeFaceTracking() {
+            const videoElement = document.getElementById('video');
+            const faceMesh = new FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            });
+            faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            faceMesh.onResults((results) => onFaceDetection(results));
+
+            // 啟動攝像頭
+            const cameraUtils = new window.Camera(videoElement, {
+                onFrame: async () => {
+                    await faceMesh.send({ image: videoElement });
+                },
+                width: 1280,
+                height: 720
+            });
+            cameraUtils.start();
+        }
+
+        // 人臉特徵點偵測與姿態估算
+        function onFaceDetection(results) {
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            if (results.multiFaceLandmarks && modelPoints.length > 0) {
+                const landmarks = results.multiFaceLandmarks[0];
+
+                // 提取人臉特徵點
+                const imagePoints = cv.matFromArray(5, 2, cv.CV_32FC1, [
+                    landmarks[1].x * canvasElement.width, landmarks[1].y * canvasElement.height, // Nose tip
+                    landmarks[33].x * canvasElement.width, landmarks[33].y * canvasElement.height, // Left eye
+                    landmarks[263].x * canvasElement.width, landmarks[263].y * canvasElement.height, // Right eye
+                    landmarks[61].x * canvasElement.width, landmarks[61].y * canvasElement.height, // Left mouth
+                    landmarks[291].x * canvasElement.width, landmarks[291].y * canvasElement.height // Right mouth
+                ]);
+
+                // 模型特徵點
+                const objectPoints = cv.matFromArray(modelPoints.length, 3, cv.CV_32FC1, modelPoints.flat());
+
+                // 相機內參矩陣
+                const cameraMatrix = cv.matFromArray(3, 3, cv.CV_64FC1, [
+                    1280, 0, 640,
+                    0, 1280, 360,
+                    0, 0, 1
+                ]);
+                const distCoeffs = cv.Mat.zeros(5, 1, cv.CV_64FC1);
+
+                // 計算姿態
+                const rvec = new cv.Mat();
+                const tvec = new cv.Mat();
+                cv.solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec);
+
+                // 更新模型位置和旋轉
+                if (objModel) {
+                    objModel.position.set(tvec.data64F[0], tvec.data64F[1], -tvec.data64F[2]);
+                    const rotationMatrix = new cv.Mat();
+                    cv.Rodrigues(rvec, rotationMatrix);
+                    const rotation = new THREE.Matrix4().set(
+                        rotationMatrix.data64F[0], rotationMatrix.data64F[1], rotationMatrix.data64F[2], 0,
+                        rotationMatrix.data64F[3], rotationMatrix.data64F[4], rotationMatrix.data64F[5], 0,
+                        rotationMatrix.data64F[6], rotationMatrix.data64F[7], rotationMatrix.data64F[8], 0,
+                        0, 0, 0, 1
+                    );
+                    objModel.setRotationFromMatrix(rotation);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
