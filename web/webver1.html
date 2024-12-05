@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Tracking Cube with Camera Feed</title>
+</head>
+<body>
+    <style>
+        body { margin: 20; }
+        canvas { position: absolute; top: 0; left: 0; }
+        #video { display: none; }
+    </style>
+    <video id="video"></video>
+    <canvas id="outputCanvas"></canvas>    <!--繪製人臉-->
+    <div id="container"></div>   <!--顯示Three.js 的渲染-->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+   
+
+    <script type="module">
+          
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('container').appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(10, 10, 10);
+        scene.add(ambientLight, pointLight);
+
+         // 創建立方體
+       
+        const material = [
+             new THREE.MeshPhongMaterial({ color: 0x00ff00 }), // 右面 - 紅色
+    new THREE.MeshPhongMaterial({ color: 0x00ff00 }), // 左面 - 綠色
+    new THREE.MeshPhongMaterial({ color: 0x0000ff }), // 頂面 - 藍色
+    new THREE.MeshPhongMaterial({ color: 0x0000ff }), // 底面 - 黃色
+    new THREE.MeshPhongMaterial({ color: 0xffff00 }), // 前面 - 紫色
+    new THREE.MeshPhongMaterial({ color: 0xffff00 })  // 後面 - 青色
+    ];
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const cube = new THREE.Mesh(geometry, material);
+    scene.add(cube);
+      
+    camera.position.z = 5; //這個要在調
+
+    const videoElement = document.getElementById('video');
+    const canvasElement = document.getElementById('outputCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    
+    //建立 WebSocket 連接
+    // const sock = new WebSocket('ws://192.168.101.46:9002');
+    // let id = null
+
+    // // 當 WebSocket 連接成功時
+    // sock.onopen = function () {
+    //     console.log('WebSocket Success');
+    // };
+
+    // sock.onclose = () => {
+    //     console.log('WebSocket disconnect')
+    // }
+    // let pointsData
+    // // 當需要傳輸特徵點數據時
+    // id = setInterval(function sendCoordinates(points) {
+    //     if (sock.readyState === WebSocket.OPEN&& pointsData) {
+    //         sock.send(JSON.stringify(pointsData));
+    //     }
+    // },20);
+    
+    function onResults(results) {
+    canvasCtx.save();
+    canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+    if (results.multiFaceLandmarks) {
+        for (const landmarks of results.multiFaceLandmarks) {
+        drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION,{color: '#C0C0C070', lineWidth: 0.5});
+            
+            const leftEye = landmarks[33];    // 左眼角
+            const rightEye = landmarks[263];  // 右眼角
+            const leftMouthCorner = landmarks[61];
+            const rightMouthCorner = landmarks[291];
+            const noseTip = landmarks[1];     // 鼻尖
+            const forehead = landmarks[10];   // 額頭
+            cube.position.set(forehead);
+
+            const Center = {
+                x: (forehead.x+0.05) ,
+                y: (forehead.y) ,
+                z: (forehead.z)
+            };
+
+            // 將座標從 0-1 範圍映射到 Three.js 場景座標
+            const sceneX = (Center.x - 0.5) * 5;  // 左右範圍調整
+            const sceneY = -(Center.y - 0.5) * 5; // 上下範圍調整
+            const sceneZ = -Center.z * 5;         // 前後範圍調整
+
+            cube.position.set(sceneX, sceneY, sceneZ);
+            // pointsData = {
+            //     leftEye_x: leftEye.x * canvasElement.width,
+            //     leftEye_y: leftEye.y * canvasElement.height,
+            //     rightEye_x: rightEye.x * canvasElement.width,
+            //     rightEye_y: rightEye.y * canvasElement.height,
+            //     leftMouthCorner_x: leftMouthCorner.x * canvasElement.width,
+            //     leftMouthCorner_y: leftMouthCorner.y * canvasElement.height,
+            //     rightMouthCorner_x: rightMouthCorner.x * canvasElement.width,
+            //     rightMouthCorner_y: rightMouthCorner.y * canvasElement.height,
+            //     noseTip_x: noseTip.x * canvasElement.width,
+            //     noseTip_y: noseTip.y * canvasElement.height,
+            //     forehead_x: forehead.x*canvasElement.width,
+            //     forehead_y: forehead.y*canvasElement.height
+            // };
+            // const points = [leftEye, rightEye, leftMouthCorner, rightMouthCorner, noseTip];
+            // const colors = ['red', 'blue', 'green', 'yellow', 'purple']; // 特徵點顏色
+
+            // points.forEach((point, index) => {
+            //     canvasCtx.beginPath();
+            //     canvasCtx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 5, 0, 2 * Math.PI);
+            //     canvasCtx.fillStyle = colors[index];
+            //     canvasCtx.fill();
+            // });
+            
+           // 計算兩眼之間的傾斜角（左右傾斜）
+            const eyeSlope = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x);
+
+           // 計算頭部的俯仰角 (上下點頭)
+            const noseToForehead = Math.atan2(noseTip.y - forehead.y, noseTip.z - forehead.z);
+
+           // 計算頭部的偏航角 (左右轉頭)
+            const noseToEyesCenter = Math.atan2(noseTip.x - (leftEye.x + rightEye.x) / 2, noseTip.z - (leftEye.z + rightEye.z) / 2);
+
+
+            cube.rotation.z = -(noseToEyesCenter);       // 左右傾斜
+            cube.rotation.x = -(noseToForehead);  // 上下點頭
+            cube.rotation.y = eyeSlope;  // 左右轉頭
+
+            const points = [leftEye, rightEye, leftMouthCorner, rightMouthCorner, noseTip];
+        const colors = ['red', 'blue', 'green', 'yellow', 'purple'];
+        points.forEach((point, index) => {
+        canvasCtx.beginPath();
+        canvasCtx.arc(point.x * canvasElement.width, point.y * canvasElement.height, 5, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = colors[index];
+        canvasCtx.fill();
+      });
+    }
+  }
+  canvasCtx.restore();
+}
+        // Mediapipe FaceMesh 設置
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+        faceMesh.onResults(onResults);
+
+        // 啟動攝像頭
+        if (window.Camera) {
+            const camera = new window.Camera(videoElement, {
+            onFrame: async () => {
+                await faceMesh.send({image: videoElement});
+            },
+                width: 1280,
+                height: 720
+            });
+            camera.start();
+        } else {
+            console.error('Camera module not found');
+        }
+
+        // 繪製循環
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // 處理窗口大小改變
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        onWindowResize();
+
+    </script>
+</body>
+</html>
