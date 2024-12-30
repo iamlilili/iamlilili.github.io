@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mediapipe</title>
+    <style>
+        body {
+            margin: 0;
+      background-color: black;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+        }
+        .container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1); /* 鏡像翻轉 */
+      object-fit: cover; /* 填滿視窗 */
+      z-index: -1; /* 背景層 */
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1); /* 鏡像翻轉 */
+      z-index: 1; /* 模型層 */
+    }
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .controls label {
+      color: white;
+      margin-right: 10px;
+    }
+        
+       @media screen and (max-width: 500px) {
+  
+        }
+    </style>
+</head>
+  
+  <body>
+    
+    <div class="container">
+        <video autoplay playsinline id="video"></video>
+        <div class="controls">
+          <label for="opacity-slider">Opacity : </label>
+          <input id="opacity-slider" type="range" min="0" max="1" step="0.01" value="1" />
+        </div>
+        <div><button onclick="switchCamera()">switchCamera</button></div>
+      </div>
+      <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+      <script>eruda.init();</script>
+    <script type="module">
+        
+    import * as THREE from 'https://unpkg.com/three@0.126.1/build/three.module.js';
+    import { OBJLoader } from "https://cdn.jsdelivr.net/npm/three@0.126.1/examples/jsm/loaders/OBJLoader.js";
+    import { OrbitControls } from 'https://unpkg.com/three@0.126.1/examples/jsm/controls/OrbitControls.js';
+    import { FilesetResolver, FaceLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.1.0-alpha-16";
+
+    const container = document.querySelector('.container');
+    const video = document.getElementById('video');
+    const opacitySlider = document.getElementById('opacity-slider');
+
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(-1, -2, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+container.appendChild(renderer.domElement);
+
+// 添加簡單的燈光
+const light = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(light);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+directionalLight.position.set(0, 1, 1);
+scene.add(directionalLight);
+
+// 加入相機控制
+//const controls = new OrbitControls(camera, renderer.domElement);
+const loader = new OBJLoader();
+// 加載 OBJ 模型
+let avatar;
+const avatarMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 1, // 初始透明度
+    });
+const avatarGroup = new THREE.Group();
+loader.load(
+  "https://dulcet-eclair-8b1752.netlify.app/Skin.obj", // 替換為你的 OBJ 模型路徑
+  (obj) => {
+    avatar = obj;
+
+    // 計算模型的包圍盒
+    const box = new THREE.Box3().setFromObject(avatar);
+    const center = new THREE.Vector3();
+    box.getCenter(center); // 獲取包圍盒的中心點
+
+    // 將模型的幾何中心移動到原點
+    avatar.traverse((child) => {
+      if (child.isMesh) {
+        child.geometry.translate(-center.x, -center.y-15, -center.z); // 平移幾何中心
+        child.material = avatarMaterial; // 設置自定義材質
+      }
+    });
+
+    // 設置模型的比例和旋轉
+    avatar.scale.set(1, 1, 1); // 設置模型比例
+    avatar.rotation.set(
+      Math.PI / 2,  // X 軸旋轉 90 度
+      Math.PI,      // Y 軸旋轉 180 度
+      0             // Z 軸無旋轉
+    );
+
+    // 添加到場景
+    scene.add(avatar);
+  },
+  undefined,
+  (error) => console.error("Error loading OBJ model:", error)
+);
+
+
+
+    // 監聽滑桿變化，調整透明度
+opacitySlider.addEventListener('input', (event) => {
+      const opacity = parseFloat(event.target.value);
+      avatarMaterial.opacity = opacity; // 更新材質的透明度
+    });
+
+// 啟動用戶攝像頭
+const constraints = { video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } } };
+
+        let currentFacingMode = "user";
+
+async function setupCamera() {
+  try {
+    // 確保 constraints 符合手機攝像頭需求
+    const constraints = { 
+      video: { 
+        facingMode: currentFacingMode, // 切換前後鏡頭
+        width: { ideal: 1280 }, 
+        height: { ideal: 720 } 
+      },
+      audio: false
+    };
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("not support getUserMedia");
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+
+    // 確保 Safari 不會進入全屏模式
+    video.setAttribute("autoplay", "");
+    video.setAttribute("muted", ""); 
+    video.setAttribute("playsinline", ""); // 必須設置 playsinline
+
+    video.play();
+  } catch (error) {
+    console.error("Error accessing camera:", error);
+    alert("cannot open the camera！");
+  }
+}
+
+async function switchCamera() {
+  try {
+    currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach((track) => track.stop());
+    }
+    await setupCamera();
+  } catch (error) {
+    console.error("Failed to switch camera:", error);
+    alert("reset！");
+  }
+}
+
+
+// 初始化 MediaPipe Face Landmarker
+let faceLandmarker;
+async function setupFaceLandmarker() {
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.1.0-alpha-16/wasm"
+  );
+  faceLandmarker = await FaceLandmarker.createFromModelPath(
+    vision,
+    "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task"
+  );
+  await faceLandmarker.setOptions({
+    baseOptions: { delegate: "GPU" },
+    runningMode: "VIDEO",
+    outputFacialTransformationMatrixes: true,
+  });
+}
+
+// 更新模型位置和旋轉
+function updateAvatar(transformationMatrix) {
+  if (avatar && transformationMatrix) {
+    const mediapipeMatrix = new THREE.Matrix4().fromArray(transformationMatrix);
+
+// 定義旋轉矩陣
+const initialRotation = new THREE.Matrix4();
+initialRotation.makeRotationFromEuler(
+  new THREE.Euler(
+    Math.PI / 2, // X 軸旋轉 90 度
+    Math.PI,     // Y 軸旋轉 180 度
+    0-0.1            // Z 軸無旋轉
+    )
+  );
+
+  const scaleFactor = 0.13;
+    mediapipeMatrix.scale(new THREE.Vector3(scaleFactor, scaleFactor, scaleFactor));
+    mediapipeMatrix.multiply(initialRotation);
+
+    avatar.matrixAutoUpdate = false;
+    avatar.matrix.copy(mediapipeMatrix);
+  }
+}
+
+
+
+
+
+// 偵測臉部特徵
+async function detectFace() {
+  if (faceLandmarker && video.readyState >= 2) {
+    const landmarks = faceLandmarker.detectForVideo(video, performance.now());
+    if (landmarks.facialTransformationMatrixes?.length > 0) {
+      updateAvatar(landmarks.facialTransformationMatrixes[0].data);
+    }
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  detectFace(); // 每幀偵測臉部並更新 Avatar
+  renderer.render(scene, camera);
+}
+
+function resize() {
+      const aspectRatio = 4 / 3; // 設定 4:3 比例
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+
+      if (windowWidth / windowHeight > aspectRatio) {
+        container.style.width = `${windowHeight * aspectRatio}px`;
+        container.style.height = `${windowHeight}px`;
+      } else {
+        container.style.width = `${windowWidth}px`;
+        container.style.height = `${windowWidth / aspectRatio}px`;
+      }
+
+      camera.aspect = container.offsetWidth / container.offsetHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.offsetWidth, container.offsetHeight);
+    }
+
+// 啟動攝像頭和模型
+async function run() {
+  await setupCamera();
+  await setupFaceLandmarker();
+  animate();
+}
+window.addEventListener('resize', resize);
+resize();
+run();
+
+      </script>
+       
+   
+  </body>
+</html>
